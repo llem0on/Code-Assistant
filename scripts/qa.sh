@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # QA pipeline helper. Needs only bash + jq (+ curl for api tests).
-# Usage: qa.sh start | end [types] [effort] | next | run <id> | set <id> <status> [actual] | approve | report
+# Usage: qa.sh start | end [types] [effort] | next | run <id> | run-all | set <id> <status> [actual] | approve | report
 set -euo pipefail
 
 ROOT="${QA_ROOT:-$PWD}"
@@ -36,6 +36,7 @@ start() {
 
 end() { # [types] [effort]
   local types="${1:-ui,api,logic}" effort="${2:-medium}"
+  [ "$types" != . ] || types=ui,api,logic  # "." = all types, lets effort be set: /qa-end . high
   [[ "$types" =~ ^(ui|api|request|logic)(,(ui|api|request|logic))*$ ]] \
     || { echo "jenis test tidak valid: '$types' (ui,api,logic dipisah koma tanpa spasi)" >&2; exit 2; }
   [[ "$effort" =~ ^(low|medium|high)$ ]] || { echo "effort tidak valid: '$effort' (low|medium|high)" >&2; exit 2; }
@@ -90,6 +91,10 @@ run_api() { # id test-json
   base=$(jq -r '.base_url // empty' "$QF")
   [ -n "$base" ] || { echo "base_url kosong di $QF" >&2; exit 1; }
   case "$base" in *prod*) [ "${QA_ALLOW_PROD:-}" = 1 ] || { echo "base_url mengandung 'prod', set QA_ALLOW_PROD=1 setelah konfirmasi user" >&2; exit 1; };; esac
+  # $NAME in path/body/headers <- values saved by earlier tests ("save": {"NAME": "<jq on response>"})
+  # ponytail: plain text substitution, so saved values must not contain quotes; fine for ids/tokens
+  t=$(jq -c --argjson v "$(jq -c '.vars // {}' "$QF")" \
+    'tojson | reduce ($v | to_entries[]) as $e (.; gsub("\\$\($e.key)\\b"; $e.value | tostring)) | fromjson' <<<"$t")
   method=$(jq -r .method <<<"$t"); path=$(jq -r .path <<<"$t")
   body=$(jq -c '.body // empty' <<<"$t"); exp=$(jq -r .expect_status <<<"$t"); ejq=$(jq -r '.expect_jq // empty' <<<"$t")
 
@@ -112,6 +117,11 @@ run_api() { # id test-json
   elif [ "$code" != "$exp" ]; then s=fail
   elif [ -n "$ejq" ] && ! jq -e "$ejq" "$tmp" >/dev/null 2>&1; then s=fail
   fi
+  local k v t2
+  for k in $(jq -r '.save // {} | keys[]' <<<"$t"); do
+    v=$(jq -c "$(jq -r --arg k "$k" '.save[$k]' <<<"$t")" "$tmp" 2>/dev/null) || v=null
+    t2=$(mktemp); jq --arg k "$k" --argjson v "${v:-null}" '.vars[$k] = $v' "$QF" > "$t2" && mv "$t2" "$QF"
+  done
   actual="$code $(head -c 300 "$tmp" | tr '\n' ' ')"
   upd "$id" "$s" "$actual" "curl -X $method $base$path -> $code"
   mark "$id" "$s" "expected $exp${ejq:+ & $ejq} | actual $actual"
@@ -131,6 +141,18 @@ run_logic() { # id test-json; pass = exit 0 (+ output contains expect_output)
   actual="exit $rc $(printf %s "$out" | tail -c 300 | tr '\n' ' ')"
   upd "$id" "$s" "$actual" "(cd $dir) $cmd -> exit $rc"
   mark "$id" "$s" "expected exit 0${eo:+ & output berisi '$eo'} | actual $actual"
+}
+
+run_all() { # every pending api/logic test in one call, one visible line each; ui stays pending for /browse
+  local id n=0 total
+  total=$(jq '[.tests[]|select(.status=="pending")]|length' "$QF")
+  for id in $(jq -r '.tests[] | select(.status=="pending" and (.type // "api") != "ui") | .id' "$QF"); do
+    n=$((n + 1))
+    jq -r --arg id "$id" --arg n "$n" --arg t "$total" '.tests[] | select(.id==$id)
+      | "▶ [\($n)/\($t)] \(.id) (\(.requirement_id)) \(.type // "api") \(.method // "") \(.path // .cmd // "")"' "$QF"
+    run "$id"
+  done
+  jq -r '.tests[] | select(.status=="pending" and .type=="ui") | "UI \(.id): jalankan via /browse, lalu: qa.sh set \(.id) pass|fail|blocked \"<actual>\""' "$QF"
 }
 
 setres() { # id status [actual] -- result of a test run outside this script (ui via /browse)
@@ -163,6 +185,7 @@ case "${1:-}" in
   start) start;; next) next;; approve) approve;; report) report;;
   end) end "${2:-}" "${3:-}";;
   run) run "${2:?test id}";;
+  run-all) run_all;;
   set) setres "${2:?test id}" "${3:?status}" "${4:-}";;
-  *) echo "usage: qa.sh start|end [types] [effort]|next|run <id>|set <id> <status> [actual]|approve|report" >&2; exit 2;;
+  *) echo "usage: qa.sh start|end [types] [effort]|next|run <id>|run-all|set <id> <status> [actual]|approve|report" >&2; exit 2;;
 esac

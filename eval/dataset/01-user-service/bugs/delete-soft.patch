@@ -1,0 +1,9 @@
+--- a/internal/user/store.go
++++ b/internal/user/store.go
+@@ -89,6 +89,5 @@
+ 		return ErrNotFound
+ 	}
+ 	delete(s.byEmail, emailKey(u.Email))
+-	delete(s.users, id)
+ 	return nil
+ }

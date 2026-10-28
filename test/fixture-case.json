@@ -1,0 +1,32 @@
+{
+  "name": "01-users-api",
+  "about": "Ekstraksi dasar; pesan sebelum /qa-start tidak boleh ikut; scope api saja (requirement UI tidak jadi test). Bug: email duplikat diterima (201, harusnya 409).",
+  "scope": "api medium",
+  "before": [
+    ["user", "Catatan project lain: endpoint /legacy/users harus balas 410 Gone."],
+    ["assistant", "Oke, dicatat: /legacy/users balas 410."]
+  ],
+  "segment": [
+    ["user", "Kita QA service users. API jalan di http://127.0.0.1:18080. Ada user seed id 1 dengan email exists@test.co."],
+    ["assistant", "Siap. Endpoint apa saja yang mau dicek?"],
+    ["user", "GET /users/{id}: balas 200 dengan JSON user kalau ada, 404 dengan body {\"error\": \"...\"} kalau tidak ada."],
+    ["user", "POST /users dengan body {email, name}. Email wajib format valid, kalau tidak balas 400. Email harus unik, kalau sudah dipakai balas 409. Sukses balas 201 dengan id user baru."],
+    ["assistant", "Name wajib juga?"],
+    ["user", "Iya, name wajib. Kosong balas 400."],
+    ["user", "Satu lagi: di FE tombol Daftar harus disable selama request jalan."]
+  ],
+  "expect": [
+    {"id": "E1", "all": ["404"], "type": "stated", "testable": "api"},
+    {"id": "E2", "all": ["\\b200\\b"], "type": "stated", "testable": "api"},
+    {"id": "E3", "all": ["409|unik|duplikat"], "type": "stated", "testable": "api"},
+    {"id": "E4", "all": ["email", "format|valid"], "type": "stated", "testable": "api"},
+    {"id": "E5", "all": ["name|nama", "wajib|kosong|required"], "type": "stated", "testable": "api"},
+    {"id": "E6", "all": ["201"], "type": "stated", "testable": "api"},
+    {"id": "E7", "all": ["disable|nonaktif|tombol"], "type": "stated", "testable": "ui"}
+  ],
+  "forbid": ["legacy", "\\b410\\b"],
+  "bugs": [
+    {"id": "dup-email", "when": {"method": "POST", "path": "^/users$", "expect_status": 409},
+     "probe": [{"method": "POST", "path": "/users", "body": {"email": "exists@test.co", "name": "X"}, "expect_status": 409}]}
+  ]
+}

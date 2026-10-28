@@ -1,0 +1,20 @@
+--- a/internal/user/store.go
++++ b/internal/user/store.go
+@@ -2,7 +2,6 @@
+ 
+ import (
+ 	"errors"
+-	"strings"
+ 	"sync"
+ )
+ 
+@@ -29,8 +28,7 @@
+ 	return &Store{nextID: 1, users: map[int64]User{}, byEmail: map[string]int64{}}
+ }
+ 
+-// emailKey makes email uniqueness ignore letter case.
+-func emailKey(email string) string { return strings.ToLower(email) }
++func emailKey(email string) string { return email }
+ 
+ func (s *Store) Seed(u User) { _, _ = s.Create(u) }
+ 

@@ -1,0 +1,18 @@
+--- a/internal/user/handler.go
++++ b/internal/user/handler.go
+@@ -104,7 +104,14 @@
+ 		writeError(w, http.StatusBadRequest, "name required")
+ 		return
+ 	}
+-	u, err := h.store.Update(id, req.Email, req.Name)
++	email, name := "", ""
++	if req.Email != nil {
++		email = *req.Email
++	}
++	if req.Name != nil {
++		name = *req.Name
++	}
++	u, err := h.store.Update(id, &email, &name)
+ 	switch {
+ 	case errors.Is(err, ErrNotFound):
+ 		writeError(w, http.StatusNotFound, err.Error())

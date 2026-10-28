@@ -2,6 +2,7 @@
 name: qa-goal-extractor
 description: Ekstrak goals, constraint, keputusan, dan hal belum jelas dari segmen conversation QA (.qa/segment.txt). Dipanggil oleh /qa-end dengan path segmen; hanya membaca, tidak menulis.
 tools: Read
+model: sonnet
 ---
 Kamu menerima path file segmen conversation. Format file: blok `[USER] ...` dan `[ASSISTANT] ...` berurutan waktu. Baca file itu dengan Read (potong per bagian kalau besar).
 

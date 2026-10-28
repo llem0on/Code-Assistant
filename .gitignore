@@ -1,3 +1,5 @@
 .qa/
 requirements.md
 .DS_Store
+eval/results/
+__pycache__/

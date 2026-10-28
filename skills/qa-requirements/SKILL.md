@@ -12,6 +12,7 @@ Input: `requirements.md` (hasil `qa-goal-extractor`) dan `.qa/scope.json` (`{"ty
   - `api`: request HTTP ke endpoint, dicek status code + body.
   - `logic`: aturan bisnis dicek lewat command shell yang sudah ada (`go test ./pkg/x -run TestY -count=1`, `npm test -- -t "..."`). Lulus = exit 0. Kalau belum ada test code untuk logika itu, jangan masukkan ke queue; tulis di bawah tabel sebagai "butuh test code baru" dan tanya user.
   - `ui`: alur di browser (halaman, klik, isi form, teks yang tampil), dijalankan lewat `/browse` saat `/qa-run`.
+  - `.`: jalanin ketiga test api, logic dan ui.
 - Requirement yang tidak cocok dengan jenis manapun di `types`: tulis di bawah tabel sebagai "di luar scope", jangan dibuat test.
 - Effort menentukan kedalaman per requirement:
   - `low`: 1 test, perilaku utama (happy path).
@@ -62,8 +63,9 @@ Sumber di atas mengalahkan sumber di bawahnya. Perilaku kode TIDAK boleh jadi ex
    ```
    - `base_url` (untuk `api`): dari user, `openapi.yaml`, atau README. Tidak diketahui berarti `null` (ditanya saat `/qa-run`).
    - `api`: `headers`, `body`, `expect_jq` opsional. `$QA_TOKEN` diganti dari env saat dijalankan; jangan tulis token asli.
+   - Test yang butuh nilai dari response test sebelumnya (misal id user yang baru dibuat): tambahkan `"save": {"NEW_ID": ".id"}` di test pembuat (nilai = ekspresi jq atas body response), lalu pakai `$NEW_ID` di `path`/`body` test sesudahnya. Hanya cara ini yang didukung runner; jangan pakai placeholder lain. Test dijalankan berurutan sesuai queue, jadi test pembuat harus di atas.
    - `logic`: `cwd` default root proyek QA; isi path repo yang diuji. `expect_output` opsional. `cmd` hanya boleh menjalankan test/cek, bukan mengubah data atau file.
    - `ui`: `steps` berupa langkah singkat; `expect` hal yang bisa dilihat di halaman.
    - `inferred: true` bila requirement-nya `inferred`.
-5. **Tampilkan ke user** sebagai tabel: `ID | Req | Type | Test | Request/Cmd/Langkah | Expected | Mutating?` (`Mutating?` = ya bila api bukan GET/HEAD/OPTIONS, atau langkah ui submit/hapus data). Di bawahnya: scope (types + effort), asumsi `inferred`, "di luar scope", "butuh test code baru", requirement yang tidak bisa diuji.
+5. **Tampilkan ke user** sekali, sebagai tabel ringkas (jangan tampilkan isi JSON, jangan ulangi requirement yang sudah ditampilkan): `ID | Req | Type | Request/Cmd/Langkah | Expected | Mutating?` (`Mutating?` = ya bila api bukan GET/HEAD/OPTIONS, atau langkah ui submit/hapus data). Di bawahnya: scope (types + effort), asumsi `inferred`, "di luar scope", "butuh test code baru", requirement yang tidak bisa diuji.
 6. **Tunggu persetujuan atau revisi.** Revisi: edit `queue.json`, tampilkan ulang, `approved` tetap `false`. Setelah user setuju: `bash ~/.claude/scripts/qa.sh approve`, lalu arahkan user ke `/qa-run`.
